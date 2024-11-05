@@ -11,10 +11,16 @@ import face_recognition
 from pathlib import Path
 from django.conf import settings
 import time
-from .models import FaceRecognition
+from .models import Attendance, FaceRecognition
 from django.core.exceptions import ObjectDoesNotExist
 import shutil
 from PIL import Image
+from datetime import timedelta
+from django.utils import timezone
+######
+today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+today_end = today_start + timedelta(days=1)
+font = cv2.FONT_HERSHEY_SIMPLEX
 camera_status = True
 camera = None
 url = "http://192.168.1.14/cam"
@@ -55,8 +61,7 @@ recognized_names_global = []
 def genCam():
     global recognized_names_global
     global cam
-
-    font = cv2.FONT_HERSHEY_SIMPLEX
+    
     recognizer = cv2.face.LBPHFaceRecognizer_create()
     recognizer.read('trainer/trainer.yml')
 
@@ -80,9 +85,16 @@ def genCam():
             if (confidence < 100):
                 face_record = FaceRecognition.objects.filter(mssv=id).first()
                 if face_record:
-                    id = face_record.name
+                    ids = face_record.name
+                    attendance_exists = Attendance.objects.filter(
+                    student=FaceRecognition.objects.get(mssv=id),
+                    timestamp__gte=today_start, #greater than or equal
+                    timestamp__lt=today_end #Less than
+                    ).exists()
+                    if not attendance_exists:
+                        Attendance(student=FaceRecognition.objects.get(mssv=id), status='Yes').save()
                 else :
-                    id = "unknown"
+                    ids = "unknown"
                 confidence = "  {0}%".format(round(100 - confidence))
 
             else:
@@ -90,7 +102,7 @@ def genCam():
                 confidence = "  {0}%".format(round(100 - confidence))
 
             cv2.rectangle(img, (x, y), (x+w, y+h), (0, 0, 255), 2)
-            cv2.putText(img, str(id), (x,y-10), font, 0.75, (0,0,255), 2)
+            cv2.putText(img, str(ids), (x,y-10), font, 0.75, (0,0,255), 2)
             cv2.putText(img, str(confidence), (x +5, y+h+5), font, 0.75, (0, 0, 255), 2)
 
         ret, jpeg = cv2.imencode('.jpg', img)
@@ -107,17 +119,17 @@ def get_pc_cam(request):
 def pc_cam(request):
     return render(request, "video_processing/pc_cam.html", {'camera_status': camera_status})
 
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-
 def genESP():
     global recognized_names_global
     recognizer.read('trainer/trainer.yml')
-    font = cv2.FONT_HERSHEY_SIMPLEX
-
+    
+    print (today_start)
+    print(today_end)
     while True:
         img = urllib.request.urlopen(url)
         img_np = np.array(bytearray(img.read()), dtype=np.uint8)
         frame = cv2.imdecode(img_np, -1)
+        frame = cv2.flip(frame, 1)
         
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = detector.detectMultiScale(
@@ -127,25 +139,29 @@ def genESP():
             minSize=(20,20)
         )
 
-        recognized_names_global = []
-
         for (x,y,w,h) in faces:
             id, confidence = recognizer.predict(gray[y:y+h,x:x+w])
             
-            if (confidence < 100):
+            if (30 <confidence < 100):
                 face_record = FaceRecognition.objects.filter(mssv=id).first()
                 if face_record:
-                    id = face_record.name
+                    ids = face_record.name
+                    attendance_exists = Attendance.objects.filter(
+                    student=FaceRecognition.objects.get(mssv=id),
+                    timestamp__gte=today_start, #greater than or equal
+                    timestamp__lt=today_end #Less than
+                    ).exists()
+                    if not attendance_exists:
+                        Attendance(student=FaceRecognition.objects.get(mssv=id), status='Yes').save()
                 else :
-                    id = "unknown"
+                    ids = "unknown"
                 confidence = "  {0}%".format(round(100 - confidence))
-
             else:
-                id = "unknown"
+                ids = "unknown"
                 confidence = "  {0}%".format(round(100 - confidence))
 
             cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 0, 255), 2)
-            cv2.putText(frame, str(id), (x,y-10), font, 0.75, (0,0,255), 2)
+            cv2.putText(frame, str(ids), (x,y-10), font, 0.75, (0,0,255), 2)
             cv2.putText(frame, str(confidence), (x +5, y+h+5), font, 0.75, (0, 0, 255), 2)
 
         ret, jpeg = cv2.imencode('.jpg', frame)
@@ -157,24 +173,49 @@ def genESP():
 
 @csrf_exempt
 def attendance(request):
-    global recognized_names_global
 
     if request.method == 'POST':
-        return JsonResponse({'recognized_names': recognized_names_global})
+
+        total = FaceRecognition.objects.count()
+        attended_count = Attendance.objects.filter(
+            timestamp__gte=today_start,
+            timestamp__lt=today_end
+        ).values('student').distinct().count()
+
+        list=[]
+        students = FaceRecognition.objects.all()
+
+        for student in students:
+            try:
+                attendanced= Attendance.objects.get(student_id=student.mssv,timestamp__gte=today_start, timestamp__lt=today_end)
+                status ='Yes'
+            except Attendance.DoesNotExist:
+                status='No'
+
+            list.append({
+                'mssv':student.mssv,
+                'name':student.name,
+                'status':status
+            })
+
+        return JsonResponse({
+            'list':list,
+            'attended_students': attended_count,
+            'total_students': total,
+            'attendance_summary': f"{attended_count}/{total}"})
 
     return JsonResponse({'error': 'Invalid request'}, status=400)
 
 ##################################################################
 def pc_cam_no_detect():
     global cam
-    faceCascade = cv2.CascadeClassifier(cv2.data.haarcascades +'haarcascade_frontalface_default.xml')
     cam = cv2.VideoCapture(0)
     
     while True:
         ret, img = cam.read()
         img = cv2.flip(img, 1)
         gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-        faces = faceCascade.detectMultiScale(
+        faces = detector.detectMultiScale(
             gray,
             scaleFactor=1.2,
             minNeighbors=5,
@@ -198,6 +239,7 @@ def genESP_no_detect():
         img = urllib.request.urlopen(url)
         img_np = np.array(bytearray(img.read()), dtype=np.uint8)
         frame = cv2.imdecode(img_np, -1)
+        frame = cv2.flip(frame, 1)
         ret, jpeg = cv2.imencode('.jpg', frame)
         if not ret:
             continue
@@ -289,7 +331,7 @@ def capture(request):
                     img_np = np.frombuffer(jpg_data, dtype=np.uint8)
                     frame = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+                    faces = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
                     
                     if len(faces) == 0:
                         print("Không phát hiện khuôn mặt nào.")

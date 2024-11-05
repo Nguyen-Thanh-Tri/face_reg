@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from 'react';
 
 const AttendancePage = () => {
-    const [recognizedNames, setRecognizedNames] = useState([]);
-    const videoSrc = "http://127.0.0.1:8000/video/stream/";
+    const [studentList, setList] = useState([]);
+    const [attendanceInfo, setAttendanceInfo] = useState({
+        list:'',
+        attendedStudents: 0,
+        totalStudents: 0,
+        attendanceSummary: '',
+    });
+    // const videoSrc = "http://127.0.0.1:8000/video/stream/";
     // const videoSrc = "http://127.0.0.1:8000/video/stream_pc/";
 
     const handleAttendance = async () => {
@@ -15,17 +21,23 @@ const AttendancePage = () => {
                 throw new Error('Đã xảy ra lỗi trong quá trình điểm danh');
             }
             const data = await response.json();
-            setRecognizedNames(data.recognized_names);
+            setList(data.list);
+            console.log('Dữ liệu danh sách sinh viên:', studentList);
+            setAttendanceInfo({
+                attendedStudents: data.attended_students,
+                totalStudents: data.total_students,
+                attendanceSummary: data.attendance_summary,
+            });
         } catch (error) {
             console.error(error);
-            setRecognizedNames(['Có lỗi xảy ra!']);
+            setList(['Có lỗi xảy ra!']);
         }
     };
 
     useEffect(() => {
         handleAttendance();
         const interval = setInterval(handleAttendance, 5000);
-        return () => clearInterval(interval); 
+        return () => clearInterval(interval);
     }, []);
 
     const handleGoHome = () => {
@@ -34,16 +46,38 @@ const AttendancePage = () => {
 
     return (
         <div style={{ textAlign: 'center', marginTop: '50px' }}>
-            <h1>Điểm danh</h1>
-            <div>
-                <img src={videoSrc} width="640" height="480" alt="Camera Stream" />
-            </div>
-            <p style={{ fontSize: '18px', marginTop: '20px' }}>
-                Kết quả điểm danh: {recognizedNames.join(', ') || 'Chưa có ai điểm danh'}
-            </p>
+            <h1>Thông tin điểm danh:</h1>
+            <p>Đã điểm danh: {attendanceInfo.attendedStudents}</p>
+            <p>Tổng số sinh viên: {attendanceInfo.totalStudents}</p>
+            <p>Tóm tắt điểm danh: {attendanceInfo.attendanceSummary}</p>
+
+            <table style={{ margin: '20px auto', borderCollapse: 'collapse', width: '80%' }}>
+                <thead>
+                    <tr>
+                        <th style={{ border: '1px solid #000', padding: '10px' }}>Mã Sinh Viên</th>
+                        <th style={{ border: '1px solid #000', padding: '10px' }}>Tên Sinh Viên</th>
+                        <th style={{ border: '1px solid #000', padding: '10px' }}>Trạng Thái</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {studentList.length > 0 ? (
+                        studentList.map((student) => (
+                            <tr key={student.mssv}>
+                                <td style={{ border: '1px solid #000', padding: '10px' }}>{student.mssv}</td>
+                                <td style={{ border: '1px solid #000', padding: '10px' }}>{student.name}</td>
+                                <td style={{ border: '1px solid #000', padding: '10px' }}>{student.status}</td>
+                            </tr>
+                        ))
+                    ) : (
+                        <tr>
+                            <td colSpan="3" style={{ border: '1px solid #000', padding: '10px' }}>Không có dữ liệu</td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
             <button onClick={handleGoHome} style={buttonStyle}>Trang chủ</button>
         </div>
-        
+
     );
 };
 
