@@ -6,6 +6,23 @@ const RegisterPage = () => {
     // const videoSrc = "http://127.0.0.1:8000/video/stream_pc_cam_no_detect/";
     const videoSrc = "http://127.0.0.1:8000/video/stream_esp_cam_no_detect/";
 
+    const handleDel = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch('http://127.0.0.1:8000/video/deldata/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name, id }),
+            });
+            const data = await response.json();
+
+            alert(data.status);
+        } catch (error) {
+            console.error("error del", error);
+        }
+    }
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -57,6 +74,8 @@ const RegisterPage = () => {
             <div>
                 <img src={videoSrc} width="640" height="480" alt="Camera Stream" />
             </div>
+
+
             <form onSubmit={handleSubmit} style={{ marginTop: '20px' }}>
                 <input
                     type="text"
@@ -78,6 +97,7 @@ const RegisterPage = () => {
             </form>
             <button onClick={handleTrain} style={buttonStyle}>Huấn luyện</button>
             <button onClick={handleGoHome} style={buttonStyle}>Trang chủ</button>
+            <button onClick={handleDel} type="submit" style={buttonStyle}>Xóa dữ liệu</button>
         </div>
     );
 };

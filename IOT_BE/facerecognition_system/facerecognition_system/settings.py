@@ -7,7 +7,7 @@ SECRET_KEY = 'django-insecure-rlz&q!&7kr%&xml&6b7w=$dubm+ythrsb-6am6d5s#165y2g=i
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['10.10.32.249','localhost','127.0.0.1']
 
 INSTALLED_APPS = [
     'corsheaders',
@@ -34,12 +34,13 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    "http://localhost:5173","http://10.10.32.205"
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-CSRF_TRUSTED_ORIGINS = ["http://localhost:5173"]
+CSRF_TRUSTED_ORIGINS = ["http://localhost:5173",
+                        "http://10.10.32.205"]
 
 ROOT_URLCONF = 'facerecognition_system.urls'
 

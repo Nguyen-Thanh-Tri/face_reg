@@ -12,12 +12,15 @@ urlpatterns = [
     # path('get_esp_cam/', views.get_esp_cam, name='get_esp_cam'),
     path('toggle_pc_cam/', views.toggle_pc_cam, name='toggle_pc_cam'),
 
+    path('rfids', views.rfid, name='rfid'),
+
     path('stream_esp_cam_no_detect/', views.get_esp_no_detect, name='get_esp_cam_no_detect'),
     path('stream_pc_cam_no_detect/', views.get_pc_cam_no_detect, name='get_pc_cam_no_detect'),
   
     path('stream/', views.get_esp_cam, name='get_esp_cam'),
     path('stream_pc/', views.get_pc_cam, name='get_pc_cam'),
 
+    path('deldata/',views.deldata,name="deldata"),
     path('capture/', views.capture, name="capture"),
     path('attendance/', views.attendance, name="attendance"),
     path('train/', views.train_faces, name="train"),
