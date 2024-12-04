@@ -183,7 +183,7 @@ def genESP():
             for (x,y,w,h) in faces:
                 id, confidence = recognizer.predict(gray[y:y+h,x:x+w])
                 print(id)
-                if (40 <confidence < 100):
+                if (confidence < 100):
                     face_record = FaceRecognition.objects.filter(mssv=id).first()
                     print(id)
                     if face_record:

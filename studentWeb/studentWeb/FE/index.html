@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="5">
+  <title>Student List</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    .student-form {
+      margin-bottom: 20px;
+    }
+    table {
+      width: 50%;
+      margin: 0 auto;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Student List</h1>
+
+  <!-- Form to add students -->
+  <div class="student-form">
+    <label for="studentName">Name:</label>
+    <input type="text" id="studentName" required>
+    <label for="studentId">ID:</label>
+    <input type="text" id="studentId" required>
+    <button onclick="addStudent()">Add Student</button>
+  </div>
+
+  <!-- Table to display students -->
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Check in</th>
+      </tr>
+    </thead>
+    <tbody id="studentTable">
+      <!-- Rows will be inserted here dynamically -->
+    </tbody>
+  </table>
+
+  <script>
+    // Fetch and display students on page load
+    window.onload = function() {
+      fetchStudents();
+    };
+
+    // Function to fetch students from the server
+    function fetchStudents() {
+      fetch('http://localhost:3000/students')
+        .then(response => response.json())
+        .then(data => {
+          const studentTable = document.getElementById('studentTable');
+          studentTable.innerHTML = ''; // Clear the table
+
+          data.forEach(student => {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>${student.id}</td><td>${student.name}</td><td>${student.checkIn}</td>`;
+            studentTable.appendChild(row);
+          });
+        });
+    }
+
+    // Function to add a student using POST API
+    function addStudent() {
+      const name = document.getElementById('studentName').value;
+      const id = document.getElementById('studentId').value;
+
+      if (name && id) {
+        fetch('http://localhost:3000/students', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name, id })
+        })
+        .then(response => response.json())
+        .then(data => {
+          alert(data.message);
+          fetchStudents(); // Refresh the student list
+        });
+      } else {
+        alert('Please enter both name and ID');
+      }
+    }
+  </script>
+
+</body>
+</html>
