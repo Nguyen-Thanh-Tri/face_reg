@@ -212,8 +212,8 @@ def genESP():
             faces = detector.detectMultiScale(
                 gray,
                 scaleFactor=1.1,
-                minNeighbors=5,
-                minSize=(20,20)
+                minNeighbors=8,
+                minSize=(30,30)
             )
         
             for (x,y,w,h) in faces:
