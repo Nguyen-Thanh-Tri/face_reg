@@ -20,6 +20,8 @@ urlpatterns = [
     path('stream/', views.get_esp_cam, name='get_esp_cam'),
     path('stream_pc/', views.get_pc_cam, name='get_pc_cam'),
 
+    path('stop/',views.stop_feed, name="stop_cam"),
+
     path('deldata/',views.deldata,name="deldata"),
     path('capture/', views.capture, name="capture"),
     path('attendance/', views.attendance, name="attendance"),

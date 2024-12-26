@@ -17,6 +17,8 @@ import shutil
 from PIL import Image
 from datetime import timedelta
 from django.utils import timezone
+import threading
+import queue
 ######
 
                 
@@ -27,7 +29,7 @@ today_end = today_start + timedelta(days=1)
 font = cv2.FONT_HERSHEY_SIMPLEX
 camera_status = True
 camera = None
-url = "http://192.168.83.125/cam"
+url = "http://192.168.183.125/cam"
 recognizer = cv2.face.LBPHFaceRecognizer_create()
 detector = cv2.CascadeClassifier(cv2.data.haarcascades +"haarcascade_frontalface_default.xml")
 @csrf_exempt
@@ -156,17 +158,51 @@ def get_pc_cam(request):
 def pc_cam(request):
     return render(request, "video_processing/pc_cam.html", {'camera_status': camera_status})
 
-def genESP():
-    global recognized_names_global
-    recognizer.read('trainer/trainer.yml')
-    
-    print (today_start)
-    print(today_end)
-    while True:
-        img = urllib.request.urlopen(url)
+
+
+
+
+
+
+frame_queue = queue.Queue(maxsize=20)  # Hàng đợi lưu các khung hình
+stop_thread = False
+
+def fetch_frames():
+    """Luồng nhận khung hình từ URL và thêm vào hàng đợi."""
+    global stop_thread
+    while not stop_thread:
         try:
+            img = urllib.request.urlopen(url)
             img_np = np.array(bytearray(img.read()), dtype=np.uint8)
             frame = cv2.imdecode(img_np, -1)
+            if frame_queue.full():
+                frame_queue.get()  # Loại bỏ khung hình cũ nhất nếu hàng đợi đầy
+            frame_queue.put(frame)  # Thêm khung hình vào hàng đợi
+        except Exception as e:
+            print(f"Lỗi khi nhận khung hình: {e}")
+
+def start_threads():
+    global stop_thread
+    stop_thread = False
+    threading.Thread(target=fetch_frames, daemon=True).start()
+    threading.Thread(target=genESP, daemon=True).start()
+def stop_threads():
+    global stop_thread
+    stop_thread = True
+    print("Threads đã dừng")
+
+def genESP():
+    global recognized_names_global
+    global stop_thread
+    recognizer.read('trainer/trainer.yml')
+
+    print (today_start)
+    print(today_end)
+    while not stop_thread:
+        if frame_queue.empty():
+            continue
+        try:
+            frame = frame_queue.get()
             frame = cv2.flip(frame, 1)
         except cv2.error as e:
             print(f"Lỗi OpenCV: {e}")
@@ -179,13 +215,14 @@ def genESP():
                 minNeighbors=5,
                 minSize=(20,20)
             )
-
+        
             for (x,y,w,h) in faces:
                 id, confidence = recognizer.predict(gray[y:y+h,x:x+w])
                 print(id)
-                if (confidence < 100):
+                print(confidence)
+                if (confidence < 60):
                     face_record = FaceRecognition.objects.filter(mssv=id).first()
-                    print(id)
+                    
                     if face_record:
                         ids = face_record.name
                         attendance_exists = Attendance.objects.filter(
@@ -218,6 +255,73 @@ def genESP():
             print(error_message)
             yield (b'--frame\r\n'
                    b'Content-Type: text/plain\r\n\r\n' + error_message.encode() + b'\r\n\r\n')
+            
+
+
+# def genESP():
+# global recognized_names_global
+# recognizer.read('trainer/trainer.yml')
+
+# print (today_start)
+# print(today_end)
+# while True:
+#     img = urllib.request.urlopen(url)
+#     try:
+#         img_np = np.array(bytearray(img.read()), dtype=np.uint8)
+#         frame = cv2.imdecode(img_np, -1)
+#         frame = cv2.flip(frame, 1)
+#     except cv2.error as e:
+#         print(f"Lỗi OpenCV: {e}")
+#         continue
+#     try:
+#         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+#         faces = detector.detectMultiScale(
+#             gray,
+#             scaleFactor=1.1,
+#             minNeighbors=5,
+#             minSize=(20,20)
+#         )
+
+#         for (x,y,w,h) in faces:
+#             id, confidence = recognizer.predict(gray[y:y+h,x:x+w])
+#             print(id)
+#             if (confidence < 100):
+#                 face_record = FaceRecognition.objects.filter(mssv=id).first()
+#                 print(id)
+#                 if face_record:
+#                     ids = face_record.name
+#                     attendance_exists = Attendance.objects.filter(
+#                     student=FaceRecognition.objects.get(mssv=id),
+#                     timestamp__gte=today_start, #greater than or equal
+#                     timestamp__lt=today_end #Less than
+#                     ).exists()
+#                     if not attendance_exists:
+#                         Attendance(student=FaceRecognition.objects.get(mssv=id), status='Yes').save()
+#                 else :
+#                     ids = "unknown"
+#                 confidence = "  {0}%".format(round(100 - confidence))
+#             else:
+#                 ids = "unknown"
+#                 confidence = "  {0}%".format(round(100 - confidence))
+
+#             cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 0, 255), 2)
+#             cv2.putText(frame, str(ids), (x,y-10), font, 0.75, (0,0,255), 2)
+#             cv2.putText(frame, str(confidence), (x +5, y+h+5), font, 0.75, (0, 0, 255), 2)
+
+#         ret, jpeg = cv2.imencode('.jpg', frame)
+#         if ret:
+#             frame = jpeg.tobytes()
+        
+#         yield (b'--frame\r\n'
+#             b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
+        
+#     except Exception as e:
+#         error_message = f"Error: {e}"
+#         print(error_message)
+#         yield (b'--frame\r\n'
+#                 b'Content-Type: text/plain\r\n\r\n' + error_message.encode() + b'\r\n\r\n')
+            
+
 @csrf_exempt    
 def attendance(request):
 
@@ -287,6 +391,17 @@ def genESP_no_detect():
         img_np = np.array(bytearray(img.read()), dtype=np.uint8)
         frame = cv2.imdecode(img_np, -1)
         frame = cv2.flip(frame, 1)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        faces = detector.detectMultiScale(
+            gray,
+            scaleFactor=1.2,
+            minNeighbors=5,     
+            minSize=(20, 20)
+        )
+        for (x,y,w,h) in faces:
+            cv2.rectangle(frame,(x,y),(x+w,y+h),(255,0,0),2)
+            roi_gray = gray[y:y+h, x:x+w]
+            roi_color = frame[y:y+h, x:x+w]
         ret, jpeg = cv2.imencode('.jpg', frame)
         if not ret:
             continue
@@ -301,8 +416,28 @@ def get_esp_no_detect(request):
 def get_pc_cam_no_detect(request):
     return StreamingHttpResponse(pc_cam_no_detect(), content_type='multipart/x-mixed-replace; boundary=frame')
 ##################################################################
+# def get_esp_cam(request):
+#     return StreamingHttpResponse(genESP(), content_type='multipart/x-mixed-replace; boundary=frame')
+
 def get_esp_cam(request):
-    return StreamingHttpResponse(genESP(), content_type='multipart/x-mixed-replace; boundary=frame')
+    """Endpoint để truyền phát video."""
+    start_threads()
+    try:
+        return StreamingHttpResponse(genESP(), content_type='multipart/x-mixed-replace; boundary=frame')
+    except Exception as e:
+        stop_threads()
+        return JsonResponse({'status': 'Lỗi xảy ra', 'error': str(e)}, status=500)
+
+
+
+def stop_feed(request):
+    """Endpoint để dừng luồng video."""
+    stop_threads()
+    return JsonResponse({'status': 'Luồng đã dừng'})
+
+
+
+
 
 def esp_cam(request):
     return render(request, "video_processing/esp_cam.html")
@@ -394,8 +529,8 @@ def capture(request):
         if not os.path.exists(dataset_dir):
             os.makedirs(dataset_dir)
 
-        stream_url = "http://127.0.0.1:8000/video/stream_esp_cam_no_detect/" #cam pc
-        # stream_url = "http://127.0.0.1:8000/video/stream_esp_cam_no_detect/" #esp
+        # stream_url = "http://127.0.0.1:8000/video/stream_pc_cam_no_detect/" #cam pc
+        stream_url = "http://127.0.0.1:8000/video/stream_esp_cam_no_detect/" #esp
         stream = requests.get(stream_url, stream=True) 
 
         face_count = 0  

@@ -28,7 +28,21 @@ const FaceReg = () => {
     return (
         <div style={{ textAlign: 'center', marginTop: '50px' }}>
             <div style={{ margin: '20px' }}>
-                <button onClick={() => navigate('/')}
+                <button onClick={() => {
+                    navigate('/');
+                    fetch('http://127.0.0.1:8000/video/stop/', {
+                        method: 'GET',
+                    })
+                        .then((response) => {
+                            if (response.ok) {
+                                console.log('Camera stopped successfully');
+                            } else {
+                                console.error('Failed to stop the camera');
+                            }
+                        })
+                        .catch((error) => console.error('Error:', error));
+
+                }}
                     style={btn_regStyle}
                     onMouseDown={(e) => Object.assign(e.target.style, btn_regPressedStyle)}
                     onMouseLeave={(e) => Object.assign(e.target.style, btn_regStyle)}
@@ -49,6 +63,7 @@ const FaceReg = () => {
                     <img
                         ref={videoRef}
                         src="http://127.0.0.1:8000/video/stream/"
+                        // src="http://127.0.0.1:8000/video/stream_pc/"
                         alt="Camera Stream"
                         width="640"
                         height="480"
